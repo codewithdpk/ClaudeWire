@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  claudewire:
+    build: .
+    container_name: claudewire
+    restart: unless-stopped
+    environment:
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
+      - REDIS_URL=redis://redis:6379
+      - SQLITE_PATH=/app/data/claudewire.db
+      - PROJECTS_DIR=/app/projects
+      - ALLOWED_USER_IDS=${ALLOWED_USER_IDS}
+      - ADMIN_USER_IDS=${ADMIN_USER_IDS}
+      - MAX_SESSIONS_PER_USER=${MAX_SESSIONS_PER_USER:-1}
+      - SESSION_TIMEOUT_MINUTES=${SESSION_TIMEOUT_MINUTES:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - claudewire-data:/app/data
+      - claudewire-projects:/app/projects
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - claudewire-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: claudewire-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - claudewire-net
+
+volumes:
+  claudewire-data:
+  claudewire-projects:
+  redis-data:
+
+networks:
+  claudewire-net:
+    driver: bridge

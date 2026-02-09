@@ -1,0 +1,66 @@
+{
+  "name": "claudewire",
+  "version": "1.0.0",
+  "description": "Bridge Claude Code to Slack - Control your AI coding assistant from anywhere",
+  "type": "module",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "author": "ClaudeWire Contributors",
+  "homepage": "https://github.com/your-org/claudewire#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/claudewire.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/claudewire/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "slack",
+    "slack-bot",
+    "ai",
+    "coding-assistant",
+    "anthropic",
+    "automation",
+    "developer-tools"
+  ],
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:watch": "vitest watch",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@slack/bolt": "^3.17.0",
+    "@slack/web-api": "^6.11.0",
+    "better-sqlite3": "^9.4.0",
+    "ioredis": "^5.3.0",
+    "nanoid": "^5.0.0",
+    "node-pty": "^1.0.0",
+    "pino": "^8.19.0",
+    "pino-pretty": "^10.3.0",
+    "strip-ansi": "^7.1.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.3.0"
+  }
+}
