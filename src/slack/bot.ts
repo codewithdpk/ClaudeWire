@@ -1,5 +1,7 @@
-import { App, LogLevel } from '@slack/bolt';
+import pkg from '@slack/bolt';
 import type { GenericMessageEvent } from '@slack/bolt';
+
+const { App, LogLevel } = pkg;
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import type { SessionManager } from '../session/manager.js';
