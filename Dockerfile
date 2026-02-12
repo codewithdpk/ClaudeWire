@@ -51,14 +51,8 @@ RUN npm rebuild node-pty better-sqlite3
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
-# Create directories
-RUN mkdir -p /app/data /app/projects
-
-# Create non-root user
-RUN groupadd -r claudewire && useradd -r -g claudewire claudewire
-RUN chown -R claudewire:claudewire /app
-
-USER claudewire
+# Create directories with open permissions (user set via docker-compose)
+RUN mkdir -p /app/data /app/projects && chmod 777 /app/data /app/projects
 
 # Set environment
 ENV NODE_ENV=production
