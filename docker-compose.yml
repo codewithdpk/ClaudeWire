@@ -19,7 +19,7 @@ services:
       - SESSION_TIMEOUT_MINUTES=${SESSION_TIMEOUT_MINUTES:-60}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
-      - claudewire-data:/app/data
+      - ${DATA_HOST_DIR:-./data}:/app/data
       - ${PROJECTS_HOST_DIR:-./projects}:/app/projects
     depends_on:
       redis:
@@ -42,7 +42,6 @@ services:
       - claudewire-net
 
 volumes:
-  claudewire-data:
   redis-data:
 
 networks:
