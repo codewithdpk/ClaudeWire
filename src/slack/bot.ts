@@ -1,5 +1,5 @@
 import pkg from '@slack/bolt';
-import type { GenericMessageEvent } from '@slack/bolt';
+import type { App as AppType, GenericMessageEvent } from '@slack/bolt';
 
 const { App, LogLevel } = pkg;
 import { config } from '../config/index.js';
@@ -17,7 +17,7 @@ const log = logger.child({ component: 'slack-bot' });
 export function createSlackBot(
   sessionManager: SessionManager,
   authService: AuthService
-): App {
+): AppType {
   const app = new App({
     token: config.slack.botToken,
     signingSecret: config.slack.signingSecret,
@@ -150,12 +150,12 @@ export function createSlackBot(
   return app;
 }
 
-export async function startSlackBot(app: App): Promise<void> {
+export async function startSlackBot(app: AppType): Promise<void> {
   await app.start();
   log.info('Slack bot started in Socket Mode');
 }
 
-export async function stopSlackBot(app: App): Promise<void> {
+export async function stopSlackBot(app: AppType): Promise<void> {
   await app.stop();
   log.info('Slack bot stopped');
 }
