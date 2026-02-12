@@ -26,4 +26,7 @@ export type InlineCommand =
   | { type: 'reject' }
   | { type: 'cancel' }
   | { type: 'help' }
+  | { type: 'projects' }
+  | { type: 'sessions' }
+  | { type: 'resume'; projectName?: string }
   | { type: 'unknown'; command: string };

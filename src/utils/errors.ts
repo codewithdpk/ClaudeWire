@@ -64,6 +64,17 @@ export class ClaudeSpawnError extends ClaudeWireError {
   }
 }
 
+export class ClaudeCodeNotInstalledError extends ClaudeWireError {
+  constructor() {
+    super(
+      'Claude Code CLI is not installed on this system',
+      'CLAUDE_CODE_NOT_INSTALLED',
+      { installUrl: 'https://docs.anthropic.com/en/docs/claude-code' }
+    );
+    this.name = 'ClaudeCodeNotInstalledError';
+  }
+}
+
 export class StorageError extends ClaudeWireError {
   constructor(operation: string, cause?: Error) {
     super(

@@ -1,7 +1,9 @@
 import type { InlineCommand, CommandResult } from './types.js';
 import type { SessionManager } from '../session/manager.js';
+import { ProjectManager } from '../storage/projects.js';
 import { logger } from '../utils/logger.js';
-import { SessionExistsError } from '../utils/errors.js';
+import { SessionExistsError, ClaudeCodeNotInstalledError } from '../utils/errors.js';
+import path from 'path';
 
 const log = logger.child({ component: 'commands' });
 
@@ -49,6 +51,19 @@ export function parseInlineCommand(text: string): InlineCommand | null {
     case 'commands':
       return { type: 'help' };
 
+    case 'projects':
+    case 'list':
+    case 'ls':
+      return { type: 'projects' };
+
+    case 'sessions':
+    case 'active':
+      return { type: 'sessions' };
+
+    case 'resume':
+    case 'open':
+      return { type: 'resume', projectName: parts[1] };
+
     default:
       return { type: 'unknown', command: cmd ?? '' };
   }
@@ -60,7 +75,8 @@ export async function executeCommand(
   userName: string,
   channelId: string,
   messageTs: string,
-  sessionManager: SessionManager
+  sessionManager: SessionManager,
+  projectManager?: ProjectManager
 ): Promise<CommandResult> {
   log.debug({ command, userId }, 'Executing command');
 
@@ -85,6 +101,15 @@ export async function executeCommand(
 
     case 'help':
       return handleHelpCommand();
+
+    case 'projects':
+      return handleProjectsCommand(userId, projectManager);
+
+    case 'sessions':
+      return handleSessionsCommand(userId, sessionManager);
+
+    case 'resume':
+      return handleResumeCommand(command.projectName, userId, userName, channelId, messageTs, sessionManager, projectManager);
 
     case 'unknown':
       return {
@@ -119,6 +144,12 @@ async function handleNewCommand(
       const status = await sessionManager.getSessionStatus(userId);
       return {
         text: `You already have an active session.\nSession ID: \`${status.session?.id}\`\nProject: \`${status.session?.projectPath}\`\n\nUse \`/stop\` to end it first.`,
+        ephemeral: true,
+      };
+    }
+    if (err instanceof ClaudeCodeNotInstalledError) {
+      return {
+        text: '*Error: Claude Code CLI is not installed*\n\nClaudeWire requires Claude Code to be installed on the server.\nPlease contact your administrator or visit: https://docs.anthropic.com/en/docs/claude-code',
         ephemeral: true,
       };
     }
@@ -228,9 +259,15 @@ function handleHelpCommand(): CommandResult {
     text: [
       '*ClaudeWire Commands*',
       '',
-      '`/new [path]` - Start a new session (optionally in a specific project path)',
+      '*Session Management:*',
+      '`/new [name]` - Start a new session (optionally with project name)',
       '`/stop` - End your current session',
       '`/status` - Show session status',
+      '',
+      '*Project Management:*',
+      '`/projects` - List your available projects',
+      '`/resume <name>` - Resume session in an existing project',
+      '`/sessions` - Show your active sessions',
       '',
       '*During Tool Prompts:*',
       '`/y` or `/accept` - Accept tool use',
@@ -241,4 +278,143 @@ function handleHelpCommand(): CommandResult {
     ].join('\n'),
     ephemeral: true,
   };
+}
+
+function handleProjectsCommand(
+  userId: string,
+  projectManager?: ProjectManager
+): CommandResult {
+  if (!projectManager) {
+    return {
+      text: 'Project manager not available.',
+      ephemeral: true,
+    };
+  }
+
+  const projects = projectManager.listUserProjects(userId);
+
+  if (projects.length === 0) {
+    return {
+      text: '*Your Projects*\n\nNo projects found. Use `/new <project-name>` to create one.',
+      ephemeral: true,
+    };
+  }
+
+  const projectList = projects.map((p) => {
+    const name = path.basename(p);
+    const info = projectManager.getProjectInfo(p);
+    const gitBadge = info.hasGit ? ' :git:' : '';
+    return `• \`${name}\`${gitBadge} (${info.fileCount} items)`;
+  });
+
+  return {
+    text: [
+      '*Your Projects*',
+      '',
+      ...projectList,
+      '',
+      'Use `/resume <name>` to start a session in a project.',
+    ].join('\n'),
+    ephemeral: true,
+  };
+}
+
+async function handleSessionsCommand(
+  userId: string,
+  sessionManager: SessionManager
+): Promise<CommandResult> {
+  const status = await sessionManager.getSessionStatus(userId);
+
+  if (!status.hasSession) {
+    return {
+      text: '*Active Sessions*\n\nNo active sessions. Use `/new` to start one.',
+      ephemeral: true,
+    };
+  }
+
+  const session = status.session!;
+  const projectName = path.basename(session.projectPath);
+  const uptime = Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000 / 60);
+
+  return {
+    text: [
+      '*Active Sessions*',
+      '',
+      `• *${projectName}*`,
+      `  - Session ID: \`${session.id}\``,
+      `  - Status: ${session.status}`,
+      `  - Uptime: ${uptime} minutes`,
+      `  - Path: \`${session.projectPath}\``,
+    ].join('\n'),
+    ephemeral: true,
+  };
+}
+
+async function handleResumeCommand(
+  projectName: string | undefined,
+  userId: string,
+  userName: string,
+  channelId: string,
+  messageTs: string,
+  sessionManager: SessionManager,
+  projectManager?: ProjectManager
+): Promise<CommandResult> {
+  if (!projectName) {
+    return {
+      text: 'Please specify a project name: `/resume <project-name>`\n\nUse `/projects` to see available projects.',
+      ephemeral: true,
+    };
+  }
+
+  if (!projectManager) {
+    return {
+      text: 'Project manager not available.',
+      ephemeral: true,
+    };
+  }
+
+  // Find the project by name
+  const projects = projectManager.listUserProjects(userId);
+  const matchingProject = projects.find((p) => path.basename(p) === projectName);
+
+  if (!matchingProject) {
+    return {
+      text: `Project \`${projectName}\` not found.\n\nUse \`/projects\` to see available projects or \`/new ${projectName}\` to create it.`,
+      ephemeral: true,
+    };
+  }
+
+  // Start session in the existing project
+  try {
+    const session = await sessionManager.createSession({
+      userId,
+      userName,
+      channelId,
+      messageTs,
+      projectPath: matchingProject,
+    });
+
+    return {
+      text: `Resumed session in \`${projectName}\`\nSession ID: \`${session.id}\`\nPath: \`${session.projectPath}\``,
+    };
+  } catch (err) {
+    if (err instanceof SessionExistsError) {
+      const status = await sessionManager.getSessionStatus(userId);
+      return {
+        text: `You already have an active session in \`${path.basename(status.session?.projectPath ?? '')}\`.\n\nUse \`/stop\` to end it first.`,
+        ephemeral: true,
+      };
+    }
+    if (err instanceof ClaudeCodeNotInstalledError) {
+      return {
+        text: '*Error: Claude Code CLI is not installed*\n\nClaudeWire requires Claude Code to be installed on the server.',
+        ephemeral: true,
+      };
+    }
+    log.error({ err, userId, projectName }, 'Failed to resume session');
+    return {
+      text: 'Failed to resume session. Please try again.',
+      ephemeral: true,
+    };
+  }
 }

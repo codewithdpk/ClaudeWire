@@ -2,8 +2,10 @@ import type { WebClient } from '@slack/web-api';
 import type { SlackContext } from './types.js';
 import type { SessionManager } from '../session/manager.js';
 import type { AuthService } from '../gateway/auth.js';
+import type { ProjectManager } from '../storage/projects.js';
 import { parseInlineCommand, executeCommand } from './commands.js';
 import { ThreadStreamer } from '../streaming/thread-streamer.js';
+import { ClaudeCodeNotInstalledError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
 const log = logger.child({ component: 'slack-handlers' });
@@ -16,7 +18,8 @@ export async function handleUserMessage(
   text: string,
   client: WebClient,
   sessionManager: SessionManager,
-  authService: AuthService
+  authService: AuthService,
+  projectManager?: ProjectManager
 ): Promise<void> {
   // Check authorization
   if (!authService.isAllowed(ctx.userId)) {
@@ -37,7 +40,8 @@ export async function handleUserMessage(
       ctx.userName,
       ctx.channelId,
       ctx.messageTs,
-      sessionManager
+      sessionManager,
+      projectManager
     );
 
     await client.chat.postMessage({
@@ -68,10 +72,16 @@ export async function handleUserMessage(
       });
     } catch (err) {
       log.error({ err, userId: ctx.userId }, 'Failed to create session');
+
+      let errorMessage = 'Failed to start session. Please try again.';
+      if (err instanceof ClaudeCodeNotInstalledError) {
+        errorMessage = '*Error: Claude Code CLI is not installed*\n\nClaudeWire requires Claude Code to be installed on the server. Please contact your administrator.';
+      }
+
       await client.chat.postMessage({
         channel: ctx.channelId,
         thread_ts: ctx.messageTs,
-        text: 'Failed to start session. Please try again.',
+        text: errorMessage,
       });
       return;
     }
@@ -104,26 +114,30 @@ export async function handleSlashCommand(
   userName: string,
   channelId: string,
   _client: WebClient,
-  sessionManager: SessionManager
+  sessionManager: SessionManager,
+  projectManager?: ProjectManager
 ): Promise<string> {
   const parts = commandText.trim().split(/\s+/);
   const subcommand = parts[0]?.toLowerCase() || 'help';
 
   log.debug({ subcommand, userId }, 'Handling slash command');
 
+  // Generate a unique messageTs for threads (Slack format: seconds.microseconds)
+  const now = Date.now();
+  const messageTs = `${Math.floor(now / 1000)}.${String(now % 1000).padStart(3, '0')}000`;
+
   switch (subcommand) {
     case 'new':
     case 'start': {
       const projectPath = parts[1];
-      // Generate a unique messageTs for the thread
-      const messageTs = Date.now().toString();
       const result = await executeCommand(
         { type: 'new', projectPath },
         userId,
         userName,
         channelId,
         messageTs,
-        sessionManager
+        sessionManager,
+        projectManager
       );
       return result.text;
     }
@@ -136,7 +150,8 @@ export async function handleSlashCommand(
         userName,
         channelId,
         '',
-        sessionManager
+        sessionManager,
+        projectManager
       );
       return result.text;
     }
@@ -149,7 +164,52 @@ export async function handleSlashCommand(
         userName,
         channelId,
         '',
-        sessionManager
+        sessionManager,
+        projectManager
+      );
+      return result.text;
+    }
+
+    case 'projects':
+    case 'list':
+    case 'ls': {
+      const result = await executeCommand(
+        { type: 'projects' },
+        userId,
+        userName,
+        channelId,
+        '',
+        sessionManager,
+        projectManager
+      );
+      return result.text;
+    }
+
+    case 'sessions':
+    case 'active': {
+      const result = await executeCommand(
+        { type: 'sessions' },
+        userId,
+        userName,
+        channelId,
+        '',
+        sessionManager,
+        projectManager
+      );
+      return result.text;
+    }
+
+    case 'resume':
+    case 'open': {
+      const projectName = parts[1];
+      const result = await executeCommand(
+        { type: 'resume', projectName },
+        userId,
+        userName,
+        channelId,
+        messageTs,
+        sessionManager,
+        projectManager
       );
       return result.text;
     }
@@ -162,7 +222,8 @@ export async function handleSlashCommand(
         userName,
         channelId,
         '',
-        sessionManager
+        sessionManager,
+        projectManager
       );
       return result.text;
     }

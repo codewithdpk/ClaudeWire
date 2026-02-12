@@ -6,7 +6,8 @@ import { SQLiteLogger } from '../storage/sqlite.js';
 import { ProjectManager } from '../storage/projects.js';
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
-import { SessionExistsError, NoSessionError } from '../utils/errors.js';
+import { SessionExistsError, NoSessionError, ClaudeCodeNotInstalledError } from '../utils/errors.js';
+import { isClaudeCodeInstalled } from '../utils/system.js';
 import type {
   Session,
   CreateSessionOptions,
@@ -46,6 +47,11 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
   }
 
   async createSession(opts: CreateSessionOptions): Promise<Session> {
+    // Check if Claude Code is installed
+    if (!isClaudeCodeInstalled()) {
+      throw new ClaudeCodeNotInstalledError();
+    }
+
     // Check for existing session
     const existing = await this.getSessionForUser(opts.userId);
     if (existing) {
@@ -81,6 +87,20 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
 
     log.info({ sessionId: session.id, userId: opts.userId, projectPath }, 'Creating session');
 
+    // Log to SQLite BEFORE spawning (to avoid FK constraint errors if Claude exits quickly)
+    this.sqliteLogger.logSessionStart({
+      id: session.id,
+      userId: session.userId,
+      userName: session.userName,
+      channelId: session.channelId,
+      threadTs: session.threadTs,
+      projectPath: session.projectPath,
+    });
+
+    // Store session in Redis
+    const ttlSeconds = config.claude.sessionTimeoutMinutes * 60;
+    await this.redisStore.setSession(session.id, opts.userId, session, ttlSeconds);
+
     // Spawn Claude Code process
     const claude = new ClaudeCodeWrapper({
       sessionId: session.id,
@@ -109,23 +129,12 @@ export class SessionManager extends EventEmitter<SessionManagerEvents> {
       await claude.spawn();
     } catch (err) {
       log.error({ err, sessionId: session.id }, 'Failed to spawn Claude Code');
+      // Clean up the session we just created
+      await this.cleanupSession(session.id, opts.userId);
       throw err;
     }
 
-    // Store session
-    const ttlSeconds = config.claude.sessionTimeoutMinutes * 60;
-    await this.redisStore.setSession(session.id, opts.userId, session, ttlSeconds);
     this.claudeProcesses.set(session.id, claude);
-
-    // Log to SQLite
-    this.sqliteLogger.logSessionStart({
-      id: session.id,
-      userId: session.userId,
-      userName: session.userName,
-      channelId: session.channelId,
-      threadTs: session.threadTs,
-      projectPath: session.projectPath,
-    });
 
     // Set up session timeout
     this.resetSessionTimeout(session.id, opts.userId);

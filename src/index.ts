@@ -34,7 +34,7 @@ async function main(): Promise<void> {
 
     // Create and start Slack bot
     log.info('Starting Slack bot...');
-    slackApp = createSlackBot(sessionManager, authService);
+    slackApp = createSlackBot(sessionManager, authService, projectManager);
     await startSlackBot(slackApp);
 
     log.info('ClaudeWire is running!');

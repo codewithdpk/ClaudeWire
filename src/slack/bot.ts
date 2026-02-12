@@ -6,6 +6,7 @@ import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import type { SessionManager } from '../session/manager.js';
 import type { AuthService } from '../gateway/auth.js';
+import type { ProjectManager } from '../storage/projects.js';
 import {
   handleUserMessage,
   handleSlashCommand,
@@ -16,7 +17,8 @@ const log = logger.child({ component: 'slack-bot' });
 
 export function createSlackBot(
   sessionManager: SessionManager,
-  authService: AuthService
+  authService: AuthService,
+  projectManager: ProjectManager
 ): AppType {
   const app = new App({
     token: config.slack.botToken,
@@ -66,7 +68,8 @@ export function createSlackBot(
       msg.text,
       client,
       sessionManager,
-      authService
+      authService,
+      projectManager
     );
   });
 
@@ -114,7 +117,8 @@ export function createSlackBot(
       text,
       client,
       sessionManager,
-      authService
+      authService,
+      projectManager
     );
   });
 
@@ -133,7 +137,8 @@ export function createSlackBot(
       command.user_name,
       command.channel_id,
       app.client,
-      sessionManager
+      sessionManager,
+      projectManager
     );
 
     await respond({

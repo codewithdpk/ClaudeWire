@@ -19,7 +19,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       - claudewire-data:/app/data
-      - claudewire-projects:/app/projects
+      - ${PROJECTS_HOST_DIR:-./projects}:/app/projects
     depends_on:
       redis:
         condition: service_healthy
@@ -42,7 +42,6 @@ services:
 
 volumes:
   claudewire-data:
-  claudewire-projects:
   redis-data:
 
 networks:
