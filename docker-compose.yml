@@ -5,12 +5,12 @@ services:
     build: .
     container_name: claudewire
     restart: unless-stopped
-    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
       - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
       - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
       - REDIS_URL=redis://redis:6379
+      - PATH=/root/.local/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
       - SQLITE_PATH=/app/data/claudewire.db
       - PROJECTS_DIR=/app/projects
       - ALLOWED_USER_IDS=${ALLOWED_USER_IDS}
@@ -21,6 +21,10 @@ services:
     volumes:
       - ${DATA_HOST_DIR:-./data}:/app/data
       - ${PROJECTS_HOST_DIR:-./projects}:/app/projects
+      # Mount host's Claude Code installation (set CLAUDE_CODE_PATH in .env)
+      - ${CLAUDE_CODE_PATH}:/root/.local:ro
+      # Mount Claude Code config (set CLAUDE_CONFIG_PATH in .env)
+      - ${CLAUDE_CONFIG_PATH}:/root/.claude
     depends_on:
       redis:
         condition: service_healthy

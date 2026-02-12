@@ -37,9 +37,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Claude Code CLI (adjust as needed for actual installation)
-# This assumes Claude Code is available via npm or a similar method
-# RUN npm install -g @anthropic-ai/claude-code
+# Claude Code CLI is mounted from host via docker-compose volumes
 
 # Copy package files and install production dependencies
 COPY package*.json ./
